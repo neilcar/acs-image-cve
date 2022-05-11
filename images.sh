@@ -30,7 +30,7 @@ else
 fi
 
 # Create jq layers file
-echo '["CVE", "CVSS Score", "Summary", "Component", "Version", "Fixed By", "Layer Index", "Layer Instruction"], (.metadata.v1.layers as $layers | .scan.components | sort_by(.layerIndex, .name) | .[] | . as $component | select(.vulns != null) | .vulns[] | [.cve, .cvss, .summary, $component.name, $component.version, .fixedBy, $component.layerIndex, ($layers[$component.layerIndex].instruction + " " +$layers[$component.layerIndex].value)]) | @csv' >$HOME/layers_file
+echo '["Image", "CVE", "CVSS Score", "Summary", "Component", "Version", "Fixed By", "Layer Index", "Layer Instruction"], (.metadata.v1.layers as $layers | .scan.components | sort_by(.layerIndex, .name) | .[] | . as $component | select(.vulns != null) | .vulns[] | [env.image_fullname, .cve, .cvss, .summary, $component.name, $component.version, .fixedBy, $component.layerIndex, ($layers[$component.layerIndex].instruction + " " +$layers[$component.layerIndex].value)]) | @csv' >$HOME/layers_file
 
 function curl_central() {
   curl -sk -H "Authorization: Bearer ${ROX_API_TOKEN}" "https://${ROX_ENDPOINT}/$1"
@@ -42,9 +42,10 @@ for namespace in $(curl_central "v1/namespaces" | jq --arg namespace "$namespace
 do
 	for imageid in $(curl_central "v1/images?query=Namespace:${namespace}"|jq -r ".images[] | select(.cves != null) | .id")
 	do
-	    imagename=$(curl_central v1/images/{$imageid} | jq -r jq '.name.fullName | gsub("/"; "_")')
+	    imagename=$(curl_central v1/images/{$imageid} | jq -r '.name.fullName | gsub("/"; "_")')
+			image_fullname=$(curl_central v1/images/{$imageid} | jq -r '.name.fullName')
+			export image_fullname
 		echo "We are in $namespace looking at $imagename"
 		curl_central v1/images/{$imageid} | jq -r  -f $HOME/layers_file > ${namespace}-${imagename}.csv
 	done
 done
-
